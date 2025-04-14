@@ -128,7 +128,37 @@ After applying the infrastructure, Terraform will output:
 - `alb_dns_name`: Public DNS name of the Load Balancer.
 - `db_endpoint`: Endpoint of the RDS MySQL database.
 
-You can access your frontend application via `http://<alb_dns_name>`.
+You can access your frontend application via:  
+**http://<alb_dns_name>**
+
+---
+
+### 🎯 Terraform Apply Output
+
+![Terraform Apply Output](https://github.com/user-attachments/assets/d98874f5-203f-48ad-95c9-a5f214cb6a62)
+
+---
+
+### 🎯 EC2 Instances Output
+
+![EC2 Instances Output](https://github.com/user-attachments/assets/c173d9ff-5c98-4a1f-8d44-47c5880992b3)
+
+
+### 🎯 Load Balancer Output
+
+![Load Balancer Output](https://github.com/user-attachments/assets/77706e95-8c03-4b52-adbe-b337f89012b3)
+
+
+
+### 🎯 Application Working Proof
+
+When you add a note, it will be shown in the table:
+
+![Note Added](https://github.com/user-attachments/assets/20bde7bd-562c-42c8-97c5-7c3a3ea05fbe)
+
+![Database Save Confirmation](https://github.com/user-attachments/assets/c9f4ed07-381d-4789-ad67-03110a21d0d7)
+
+
 
 
 ## 💡 Best Practices & Tips
