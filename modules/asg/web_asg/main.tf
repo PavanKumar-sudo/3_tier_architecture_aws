@@ -10,87 +10,116 @@ resource "aws_launch_template" "this" {
     security_groups             = [var.security_group_id]
   }
 
- user_data = base64encode(<<EOF
+user_data = base64encode(<<EOF
 #!/bin/bash
 set -e
 
-# Wait for instance metadata service to be reachable (network ready)
+# === Wait for Metadata Service ===
 until curl -s http://169.254.169.254/latest/meta-data/; do
   echo "Waiting for metadata service..."
   sleep 15
 done
 
-# Wait extra for system boot, yum repo ready
+# === Basic Sleep to Stabilize Network ===
 sleep 30
 
-# Update and install essentials
+# === System Update ===
 yum update -y
-curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
-yum install -y nodejs git httpd
+sleep 30
 
-# Start Apache
-systemctl start httpd
-systemctl enable httpd
-
-# Fix home permissions
-chown -R ec2-user:ec2-user /home/ec2-user || true
-
-# Clone frontend app with retries
-cd /home/ec2-user/
-for i in {1..15}; do
-  sudo -u ec2-user git clone https://github.com/PavanKumar-sudo/simple_note_app.git && break
-  echo "Retrying git clone ($i)..."
-  sleep 10
+# === Wait for YUM Lock ===
+while fuser /var/run/yum.pid >/dev/null 2>&1; do
+  echo "Waiting for yum lock..."
+  sleep 20
 done
 
-# Check if cloned successfully
+# === Install Node.js, Git, Apache (Essential Packages) ===
+curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+sleep 40
+
+for i in {1..5}; do
+  yum install -y nodejs git httpd && break
+  echo "Retrying yum install packages ($i)..."
+  sleep 60
+done
+
+# === Start Apache (with retry) ===
+for i in {1..5}; do
+  systemctl start httpd && break
+  echo "Retrying systemctl start httpd ($i)..."
+  sleep 30
+done
+
+# === Optional: Small Wait after Apache start ===
+sleep 5
+
+# === Enable Apache Auto-Start (with retry) ===
+for i in {1..5}; do
+  systemctl enable httpd && break
+  echo "Retrying systemctl enable httpd ($i)..."
+  sleep 40
+done
+
+
+# === Fix Permissions ===
+chown -R ec2-user:ec2-user /home/ec2-user || true
+
+# === Clone Frontend Code with Retry ===
+cd /home/ec2-user/
+for i in {1..20}; do
+  sudo -u ec2-user git clone https://github.com/PavanKumar-sudo/simple_note_app.git && break
+  echo "Retrying git clone (\$i)..."
+  sleep 30
+done
+
 if [ ! -d "/home/ec2-user/simple_note_app/frontend" ]; then
-  echo "Git clone failed even after retries" >&2
+  echo "Git clone failed after retries" >&2
   exit 1
 fi
 
-# Move into frontend and build app
+# === Move into Frontend and Build App ===
 sudo -u ec2-user bash <<'EOU'
 cd /home/ec2-user/simple_note_app/frontend
-
-# Create .env.production
 echo "REACT_APP_API_URL=/api" > .env.production
 
-# Retry npm install
-for i in {1..15}; do
+for i in {1..20}; do
   npm install && break
-  echo "Retrying npm install ($i)..."
-  sleep 10
+  echo "Retrying npm install frontend (\$i)..."
+  sleep 30
 done
 
-# Sleep after install
-sleep 20
+sleep 60
 
-# Retry npm run build
-for i in {1..15}; do
+for i in {1..20}; do
   npm run build && break
-  echo "Retrying npm run build ($i)..."
-  sleep 10
+  echo "Retrying npm run build frontend (\$i)..."
+  sleep 50
 done
-
-# Sleep after build
-sleep 10
+sleep 50
 EOU
 
-# Apache reverse proxy for backend API
+# === Apache Reverse Proxy Config ===
 cat <<EOT > /etc/httpd/conf.d/api-proxy.conf
 ProxyRequests Off
 ProxyPass "/api" "http://${var.app_server_private_ip}:8080/api"
 ProxyPassReverse "/api" "http://${var.app_server_private_ip}:8080/api"
 EOT
 
-# Deploy frontend to Apache
+# === Deploy Frontend to Apache ===
 rm -rf /var/www/html/*
 cp -r /home/ec2-user/simple_note_app/frontend/build/* /var/www/html/
-sudo systemctl restart httpd
-sleep 10
+sleep 50
+
+# Retry restart Apache
+for i in {1..5}; do
+  sudo systemctl restart httpd && break
+  echo "Retrying restart httpd ($i)..."
+  sleep 30
+done
+
 EOF
 )
+
 
   lifecycle {
     create_before_destroy = true

@@ -31,71 +31,78 @@ user_data = base64encode(<<EOF
 #!/bin/bash
 set -e
 
-# Wait for instance metadata service to be reachable (network ready)
+# === Wait for Metadata Service ===
 until curl -s http://169.254.169.254/latest/meta-data/; do
   echo "Waiting for metadata service..."
   sleep 15
 done
 
-# === Update System ===
+# === Basic Sleep to Stabilize Network ===
+sleep 30
+
+# === System Update ===
 yum update -y
+sleep 30
 
-# === Install Node.js 18.x and Git, MariaDB Client, Python3 Pip with Retry ===
-curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+# === Wait for YUM Lock (important) ===
+while fuser /var/run/yum.pid >/dev/null 2>&1; do
+  echo "Waiting for yum lock..."
+  sleep 10
+done
 
-for i in {1..5}; do
+# === Install Packages with Retry ===
+for i in {1..10}; do
   yum install -y nodejs git mariadb105 python3-pip && break
   echo "Retrying yum install packages (\$i)..."
-  sleep 15
+  sleep 30
 done
+sleep 30
+
+# === Install Node.js 18 ===
+curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+sleep 15
 
 # === Install PM2 Globally with Retry ===
-for i in {1..5}; do
+for i in {1..10}; do
   npm install -g pm2 && break
   echo "Retrying npm install pm2 (\$i)..."
-  sleep 15
+  sleep 30
 done
+sleep 20
 
 # === Install Python PyMySQL with Retry ===
-for i in {1..5}; do
+for i in {1..10}; do
   pip3 install PyMySQL && break
   echo "Retrying pip3 install PyMySQL (\$i)..."
-  sleep 15
+  sleep 30
 done
-
-
-# === Sleep to allow network, yum updates, and internet stabilization ===
-sleep 30
+sleep 20
 
 # === Clone Backend Code with Retry ===
 cd /home/ec2-user/
-for i in {1..10}; do
+for i in {1..20}; do
   git clone https://github.com/PavanKumar-sudo/simple_note_app.git && break
   echo "Retrying git clone (\$i)..."
-  sleep 10
+  sleep 15
 done
 
-# === Check if Cloning was Successful ===
 if [ ! -d "/home/ec2-user/simple_note_app/backend" ]; then
-  echo "Git clone failed even after retries" >&2
+  echo "Git clone failed after retries" >&2
   exit 1
 fi
 
-# === Move into Backend Directory ===
+# === Move and Set Permissions ===
 cd /home/ec2-user/simple_note_app/backend
-
-# === Install Node.js Backend Dependencies with Retry ===
-for i in {1..10}; do
-  npm install && break
-  echo "Retrying npm install (\$i)..."
-  sleep 10
-done
-
-# === Sleep after install (optional buffer) ===
-sleep 15
-
-# === Fix Permissions ===
 chown -R ec2-user:ec2-user /home/ec2-user/simple_note_app/backend
+sleep 10
+
+# === Install Backend Dependencies with Retry ===
+for i in {1..20}; do
+  npm install && break
+  echo "Retrying npm install backend (\$i)..."
+  sleep 30
+done
+sleep 30
 
 # === Create .env File ===
 cat <<EOT > /home/ec2-user/simple_note_app/backend/.env
@@ -108,16 +115,15 @@ PORT=8080
 DB_TABLE=${var.table_name}
 EOT
 
-# === Start Backend Server with PM2 ===
+# === Start Backend with PM2 ===
 pm2 start index.js --name notes-backend
 pm2 save
-
-# === Setup PM2 Startup on Boot ===
 pm2 startup systemd -u ec2-user --hp /home/ec2-user | grep sudo | bash
 systemctl enable pm2-ec2-user
+sleep 10
 
-# === Create Table in RDS if not exists ===
-python3 - <<EOF2
+# === Create DB Table if Not Exists ===
+python3 - <<EOPYTHON
 import pymysql
 import os
 
@@ -131,20 +137,21 @@ connection = pymysql.connect(
 
 cursor = connection.cursor()
 cursor.execute(f"""
-    CREATE TABLE IF NOT EXISTS ${var.table_name} (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        content TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+CREATE TABLE IF NOT EXISTS ${var.table_name} (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """)
 connection.commit()
 cursor.close()
 connection.close()
-EOF2
+EOPYTHON
 
 EOF
 )
+
 
 
   tags = merge(
