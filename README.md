@@ -19,7 +19,7 @@ The architecture includes:
 
 All components are provisioned with proper security group rules, subnet configurations, and routing.
 
----
+
 
 ## 🛠️ Project Setup
 
@@ -30,7 +30,7 @@ All components are provisioned with proper security group rules, subnet configur
 - AWS CLI configured with appropriate IAM permissions
 - A valid SSH Key Pair in the specified AWS region
 
----
+
 
 ### 2. Configure `terraform.tfvars`
 
@@ -53,7 +53,7 @@ instance_type          = "t2.micro"
 - Confirm your Key Pair exists in the selected region.
 - Secure your database password.
 
----
+
 
 ### 3. Initialize Terraform
 
@@ -62,7 +62,7 @@ terraform init
 ```
 This command initializes the Terraform working directory and downloads all required providers.
 
----
+
 
 ### 4. Review the Execution Plan
 
@@ -71,7 +71,7 @@ terraform plan -var-file="terraform.vars"
 ```
 This allows you to verify the changes Terraform will make.
 
----
+
 
 ### 5. Apply the Configuration
 
@@ -80,7 +80,7 @@ terraform apply -var-file="terraform.vars"
 ```
 When prompted, type `yes` to proceed with resource creation.
 
----
+
 
 ## 🚀 What Happens During Deployment
 
@@ -93,9 +93,7 @@ When prompted, type `yes` to proceed with resource creation.
 - **ALB** distributes traffic to web EC2 instances.
 - **Web EC2 Instances** configured with Apache via User Data.
 - **App EC2 Instances** configured with Node.js, PM2, and backend deployment via User Data.
-- **RDS MySQL** multi-AZ database deployment.
-
----
+- **RDS MySQL** single AZ database deployment.
 
 ## 📝 User Data Scripts Explained
 
@@ -123,9 +121,6 @@ sudo yum install -y nodejs
 npm install pm2 -g
 # Clone your app and run pm2 start
 ```
-
----
-
 ## 📤 Outputs
 
 After applying the infrastructure, Terraform will output:
@@ -135,7 +130,6 @@ After applying the infrastructure, Terraform will output:
 
 You can access your frontend application via `http://<alb_dns_name>`.
 
----
 
 ## 💡 Best Practices & Tips
 
@@ -144,8 +138,6 @@ You can access your frontend application via `http://<alb_dns_name>`.
 - **IAM Roles:** Assign minimum permissions necessary.
 - **Auto Scaling:** Add later for production-grade deployments.
 - **Logging:** Enable ALB access logs, EC2 system logs, and RDS logs.
-
----
 
 ## 🔄 Clean-up
 
@@ -163,4 +155,3 @@ terraform destroy --auto-approve
 - Add Route53 for custom domain.
 - Create CI/CD pipelines for backend and frontend deployments.
 
----
